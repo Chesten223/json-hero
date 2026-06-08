@@ -28,11 +28,16 @@
     const body = document.body;
     if (!body) return;
 
+    // Safety: if the page has real HTML structure, don't hijack it
+    // Only activate on pages that are bare JSON responses
+    const hasHTMLStructure = body.querySelector('script, nav, header, footer, div:not(:scope > div), img, a[href], form, input');
+    if (hasHTMLStructure && !isJsonCT) return;
+
     const pre = body.querySelector('pre');
     const text = pre ? pre.textContent : body.textContent;
     if (!text || text.length > MAX_SIZE) return;
 
-    if (!isJsonCT && !isJSON(text)) return;
+    if (!isJSON(text)) return;
 
     // We have JSON — render the viewer
     renderViewer(text);
