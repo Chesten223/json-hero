@@ -123,6 +123,21 @@
     pathBar.className = 'path-bar';
     pathBar.id = 'jh-path';
     pathBar.textContent = '$';
+    pathBar.title = 'Click to copy path';
+    pathBar.style.cursor = 'pointer';
+    let currentPath = '$';
+    pathBar.addEventListener('click', () => {
+      navigator.clipboard.writeText(currentPath);
+      const saved = currentPath;
+      pathBar.textContent = '✓ Copied: ' + saved;
+      setTimeout(() => { pathBar.textContent = saved; }, 1000);
+    });
+    // Override textContent setter to track path
+    const origSetter = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent').set;
+    Object.defineProperty(pathBar, 'textContent', {
+      set(v) { currentPath = v; origSetter.call(this, v); },
+      get() { return origSetter ? currentPath : '$'; }
+    });
 
     // Main content
     const main = document.createElement('div');
