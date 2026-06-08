@@ -107,6 +107,9 @@
         <button id="jh-copy">Copy</button>
         <button id="jh-raw">Raw</button>
         <button id="jh-collapse">Collapse All</button>
+        <button id="jh-csv" title="Export as CSV (Pro)">📊 CSV</button>
+        <button id="jh-schema" title="Generate JSON Schema (Pro)">📐 Schema</button>
+        <button id="jh-yaml" title="Convert to YAML (Pro)">📄 YAML</button>
       </div>
     `;
 
@@ -176,6 +179,45 @@
         if (!query) { line.classList.remove('highlight'); return; }
         line.classList.toggle('highlight', line.textContent.toLowerCase().includes(query));
       });
+    });
+
+    // Premium features
+    function showProToast(feature) {
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#161b22;border:1px solid #30363d;color:#c9d1d9;padding:12px 20px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.4)';
+      toast.innerHTML = `${feature} is a <span style="color:#22c55e;font-weight:600">Pro</span> feature. <a href="https://json-hero-8fu.pages.dev" target="_blank" style="color:#58a6ff;text-decoration:underline">Learn more</a>`;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    document.getElementById('jh-csv').addEventListener('click', () => {
+      // CSV export — works for flat arrays, shows Pro toast for complex data
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
+        const headers = Object.keys(parsed[0]);
+        const csv = [headers.join(','), ...parsed.map(row => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))].join('\n');
+        navigator.clipboard.writeText(csv);
+        const btn = document.getElementById('jh-csv');
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => btn.textContent = '📊 CSV', 1500);
+      } else {
+        showProToast('CSV export for nested data');
+      }
+    });
+
+    document.getElementById('jh-schema').addEventListener('click', () => {
+      const schema = generateSchema(parsed);
+      navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
+      const btn = document.getElementById('jh-schema');
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => btn.textContent = '📐 Schema', 1500);
+    });
+
+    document.getElementById('jh-yaml').addEventListener('click', () => {
+      const yaml = jsonToYaml(parsed);
+      navigator.clipboard.writeText(yaml);
+      const btn = document.getElementById('jh-yaml');
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => btn.textContent = '📄 YAML', 1500);
     });
   }
 
@@ -289,6 +331,60 @@
 
   function escHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function generateSchema(data) {
+    const schema = { $schema: 'https://json-schema.org/draft/2020-12/schema' };
+    function inferType(val) {
+      if (val === null) return 'null';
+      if (Array.isArray(val)) return 'array';
+      return typeof val;
+    }
+    function buildSchema(obj) {
+      if (obj === null) return { type: 'null' };
+      if (Array.isArray(obj)) {
+        const items = obj.length > 0 ? buildSchema(obj[0]) : {};
+        return { type: 'array', items };
+      }
+      if (typeof obj === 'object') {
+        const properties = {};
+        const required = [];
+        for (const [k, v] of Object.entries(obj)) {
+          properties[k] = buildSchema(v);
+          required.push(k);
+        }
+        return { type: 'object', properties, required };
+      }
+      return { type: typeof obj };
+    }
+    return { ...schema, ...buildSchema(data) };
+  }
+
+  function jsonToYaml(data, indent = 0) {
+    const pad = '  '.repeat(indent);
+    if (data === null) return 'null';
+    if (typeof data === 'boolean') return String(data);
+    if (typeof data === 'number') return String(data);
+    if (typeof data === 'string') {
+      if (/[:\{\}\[\],&\*#\?|\-<>=!%@\\]/.test(data) || data.includes('\n')) {
+        return '"' + data.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
+      }
+      return data;
+    }
+    if (Array.isArray(data)) {
+      if (data.length === 0) return '[]';
+      return '\n' + data.map(item => pad + '- ' + jsonToYaml(item, indent + 1)).join('\n');
+    }
+    if (typeof data === 'object') {
+      const entries = Object.entries(data);
+      if (entries.length === 0) return '{}';
+      return '\n' + entries.map(([k, v]) => {
+        const val = jsonToYaml(v, indent + 1);
+        if (val.startsWith('\n')) return pad + k + ':' + val;
+        return pad + k + ': ' + val;
+      }).join('\n');
+    }
+    return String(data);
   }
 
   // Wait for page to load
